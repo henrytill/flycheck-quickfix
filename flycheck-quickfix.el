@@ -33,6 +33,8 @@
 (require 'rx)
 (require 's)
 
+(defvar flycheck-quickfix-modes '(scala-mode))
+
 (defvar-local flycheck-quickfix-filename "errors.err")
 
 (defconst flycheck-quickfix--regex
@@ -52,8 +54,10 @@
 (defun flycheck-quickfix--get-working-directory (checker)
   (locate-dominating-file default-directory flycheck-quickfix-filename))
 
-(defun flycheck-quickfix--file-find ()
-  (expand-file-name flycheck-quickfix-filename (flycheck-quickfix--get-working-directory nil)))
+(defun flycheck-quickfix--file ()
+  (let* ((wd (flycheck-quickfix--get-working-directory nil))
+         (f  (expand-file-name flycheck-quickfix-filename wd)))
+    (and (file-exists-p f) f)))
 
 (defun flycheck-quickfix--parse-line (checker line)
   (-when-let ((_ filename line msg) (s-match flycheck-quickfix--regex line))
@@ -64,37 +68,28 @@
 (defun flycheck-quickfix--parse-file (checker file)
   (delq nil (mapcar (lambda (line) (flycheck-quickfix--parse-line checker line)) (s-lines file))))
 
-(defun flycheck-quickfix--check (checker callback file)
-  (if (file-exists-p file)
+(defun flycheck-quickfix--start (checker callback)
+  (-if-let (file (flycheck-quickfix--file))
       (let ((errors (flycheck-quickfix--parse-file checker (flycheck-quickfix--read-file file))))
         (funcall callback 'finished errors))
-    (funcall callback 'suspicious (format "No quickfix file found at: %s" file))))
-
-(defun flycheck-quickfix--start (checker callback)
-  (flycheck-quickfix--check checker callback (flycheck-quickfix--file-find)))
+    (funcall callback 'suspicious (format "could not find %s" flycheck-quickfix-filename))))
 
 (defun flycheck-quickfix--verify (name)
-  (let ((quickfix-file (flycheck-quickfix--file-find)))
-    (list
-     (if (file-exists-p quickfix-file)
-         (flycheck-verification-result-new
-          :label "Quickfix"
-          :message (message "Quickfix file exists at: %s" quickfix-file)
-          :face 'success)
-       (flycheck-verification-result-new
-        :label "Quickfix"
-        :message "Quickfix file doesn't exist"
-        :face '(bold warning))))))
-
-(flycheck-define-generic-checker 'quickfix-file
-  "A Flycheck Checker for parsing errors from Quickfix files"
-  :start             #'flycheck-quickfix--start
-  :verify            #'flycheck-quickfix--verify
-  :working-directory #'flycheck-quickfix--get-working-directory
-  :modes             '(scala-mode))
+  (let ((file (flycheck-quickfix--file)))
+    (list (flycheck-verification-result-new
+           :label   "quickfix file"
+           :message (or file "not found")
+           :face    (if file 'success 'warning)))))
 
 (defun flycheck-quickfix-setup ()
   (interactive)
+  (flycheck-define-generic-checker 'quickfix-file
+    "A Flycheck Checker for parsing errors from Quickfix files"
+    :predicate         #'flycheck-quickfix--file
+    :working-directory #'flycheck-quickfix--get-working-directory
+    :verify            #'flycheck-quickfix--verify
+    :start             #'flycheck-quickfix--start
+    :modes             flycheck-quickfix-modes)
   (add-to-list 'flycheck-checkers 'quickfix-file))
 
 (provide 'flycheck-quickfix)
