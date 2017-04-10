@@ -83,14 +83,14 @@
 
 (defun flycheck-quickfix-setup ()
   (interactive)
-  (flycheck-define-generic-checker 'quickfix-file
+  (flycheck-define-generic-checker 'quickfix
     "A Flycheck Checker for parsing errors from Quickfix files"
     :predicate         #'flycheck-quickfix--file
     :working-directory #'flycheck-quickfix--get-working-directory
     :verify            #'flycheck-quickfix--verify
     :start             #'flycheck-quickfix--start
     :modes             flycheck-quickfix-modes)
-  (add-to-list 'flycheck-checkers 'quickfix-file))
+  (add-to-list 'flycheck-checkers 'quickfix))
 
 (provide 'flycheck-quickfix)
 ;;; flycheck-quickfix.el ends here
